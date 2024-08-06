@@ -4,6 +4,7 @@ using System.Drawing;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using static System.Collections.Specialized.BitVector32;
 
 namespace ThermalConverter;
 
@@ -158,5 +159,19 @@ public static class GeoJson
         var geoJson = JsonSerializer.Serialize(data, options);
         
         File.WriteAllText(fileName, geoJson);
+    }
+
+    public static HashSet<Vector2> MakeSetOfThePoints(GeoJsonData data)
+    {
+        HashSet<Vector2> set = new();
+        for (int i = 0; i < data.features.Count; i++)
+        {
+            var point = data.features[i].geometry as FeatureGeometryPoint;
+            Debug.Assert(point != null);
+
+            point.coordinates = point.coordinates.MakeRound();
+            set.Add(point.coordinates);
+        }
+        return set;
     }
 }
