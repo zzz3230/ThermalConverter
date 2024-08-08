@@ -1,4 +1,6 @@
+using System.Collections.ObjectModel;
 using System.Diagnostics;
+using static ThermalConverter.ThermalConvert;
 
 namespace ThermalConverter;
 
@@ -27,7 +29,12 @@ public struct Vector2(double x, double y)
 
     public static Vector2 operator -(Vector2 a, Vector2 b)
     {
-        return new Vector2(a.x - a.y, b.x - b.y);
+        return new Vector2(a.x - b.x, a.y - b.y);
+    }
+
+    public static Vector2 operator /(Vector2 a, Vector2 b)
+    {
+        return new Vector2(a.x / b.x, a.y / b.y);
     }
 
     public static bool operator ==(Vector2 a, Vector2 b)
@@ -44,15 +51,25 @@ public struct Vector2(double x, double y)
 
 public class ThermalConvert
 {
+    public class Graph()
+    {
+        public Dictionary<Guid, Pipe> pipes { get; } = new();
+        public Dictionary<Guid, Node> nodes { get; } = new();
+    }
+
     public class Pipe
     {
         public Guid inputId;
         public Guid outputId;
-        public Vector2 inputPos;
-        public Vector2 outputPos;
         public double length;
         public Guid uuid;
-        public List<Guid> undirected = new();
+        public Guid kafkaEdgeId;
+        public ReadOnlyCollection<Vector2> realPath;
+
+        public override string ToString()
+        {
+            return $"in={inputId}; out={outputId}; length={length}; id={uuid};";
+        }
     }
     public class Node
     {
@@ -68,13 +85,22 @@ public class ThermalConvert
         public Type type;
         public Vector2 pos;
         public Guid uuid;
+        public Guid kafkaNodeId;
+        public List<Guid> connectedPipesIds = new();
+
+        public override string ToString()
+        {
+            return $"type={type}; pos={pos}; id={uuid}; pipes=[{string.Join(", ", connectedPipesIds)}];";
+        }
     }
 
-    public struct Line(Vector2 start, Vector2 end)
+    public struct Line(Vector2 start, Vector2 end, double realLength, List<Vector2> realPath)
     {
         public Vector2 start { get; set; } = start;
         public Vector2 end { get; set; } = end;
-        public double realLength { get; set; } = (end - start).Length();
+        public double realLength { get; } = realLength;
+
+        public ReadOnlyCollection<Vector2> realPath { get; } = realPath.AsReadOnly();
 
         public Vector2 this[int key]
         {
@@ -88,27 +114,24 @@ public class ThermalConvert
         }
     }
 
-    public void Convert(string dataFolderPath)
+    public Graph BuidGraph(string dataFolderPath)
     {
         var sections = GeoJson.ReadFromFile(Path.Combine(dataFolderPath, "section.geojson"));
         var ctps = GeoJson.ReadFromFile(Path.Combine(dataFolderPath, "ctp.geojson"));
-        var sources = GeoJson.ReadFromFile(Path.Combine(dataFolderPath, "sourse.geojson"));
+        var sources = GeoJson.ReadFromFile(Path.Combine(dataFolderPath, "sourse.geojson")); // в 'Теплосети Бердск'/sourse.geojson опечатка 
         var consumers = GeoJson.ReadFromFile(Path.Combine(dataFolderPath, "consumer.geojson"));
 
+        //for (int i = 0; i < sections.features.Count; i++)
+        //{
+        //    var lines = sections.features[i].geometry as FeatureGeometryMultiLineString;
+        //    Debug.Assert(lines != null);
+        //    Debug.Assert(lines.coordinates.Count == 1);
 
-        
-
-        for (int i = 0; i < sections.features.Count; i++)
-        {
-            var lines = sections.features[i].geometry as FeatureGeometryMultiLineString;
-            Debug.Assert(lines != null);
-            Debug.Assert(lines.coordinates.Count == 1);
-
-            for (int j = 0; j < lines.coordinates[0].Count; j++)
-            {
-                lines.coordinates[0][j] = lines.coordinates[0][j].MakeRound();
-            }
-        }
+        //    for (int j = 0; j < lines.coordinates[0].Count; j++)
+        //    {
+        //        lines.coordinates[0][j] = lines.coordinates[0][j].MakeRound();
+        //    }
+        //}
 
 
         var ctpsPointsSet = GeoJson.MakeSetOfThePoints(ctps);
@@ -118,8 +141,10 @@ public class ThermalConvert
 
         //points value is rawLines index
         Dictionary<Vector2, List<int>> points = new();
-        Dictionary<Guid, Pipe> pipes = new();
-        Dictionary<Guid, Node> nodes = new();
+
+        Graph graph = new();
+        var pipes = graph.pipes;
+        var nodes = graph.nodes;
 
         List<Line> rawLines = new();
 
@@ -129,114 +154,45 @@ public class ThermalConvert
             Debug.Assert(lines != null);
             Debug.Assert(lines.coordinates.Count == 1);
 
+            double length = 0;
             for (int j = 0; j < lines.coordinates[0].Count - 1; j++)
             {
                 var pointA = lines.coordinates[0][j];
                 var pointB = lines.coordinates[0][j + 1];
 
-                rawLines.Add(new Line(pointA, pointB));
-
-                if (points.TryGetValue(pointA, out var va))
-                    va.Add(rawLines.Count - 1);
-                else
-                    points[pointA] = [rawLines.Count - 1];
-
-
-                if (points.TryGetValue(pointB, out var vb))
-                    vb.Add(rawLines.Count - 1);
-                else
-                    points[pointB] = [rawLines.Count - 1];
+                length += (pointB - pointA).Length();
             }
-        }
 
+            var beginPoint = lines.coordinates[0][0];
+            var endPoint = lines.coordinates[0][^1];
+
+            rawLines.Add(new Line(beginPoint, endPoint, length, lines.coordinates[0]));
+
+
+            if (points.TryGetValue(beginPoint, out var va))
+                va.Add(rawLines.Count - 1);
+            else
+                points[beginPoint] = [rawLines.Count - 1];
+
+
+            if (points.TryGetValue(endPoint, out var vb))
+                vb.Add(rawLines.Count - 1);
+            else
+                points[endPoint] = [rawLines.Count - 1];
+
+        }
 
         HashSet<Vector2> crosses = new();
         for (int i = 0; i < rawLines.Count; i++)
         {
             for (int j = 0; j < 2; j++)
             {
-                if (points[rawLines[i][j]].Count == 2) // just polyline therefore make single
-                {
-
-                }
-                if (points[rawLines[i][j]].Count > 2) // three or more edges
+                if (points[rawLines[i][j]].Count > 1) // one or more edges
                 {
                     crosses.Add(rawLines[i][j]);
                 }
-
             }
         }
-
-        Debug.Assert(rawLines.All(x => x[0] != Vector2.zero && x[1] != Vector2.zero));
-
-        // foreach all points
-
-        foreach (var point in points)
-        {
-            if (point.Value.Count == 2)
-            {
-                if (ctpsPointsSet.Contains(point.Key))
-                {
-                    continue;
-                }
-
-                var line1Id = point.Value[0];
-                var line2Id = point.Value[1];
-
-                Debug.Assert(rawLines[line1Id][0] != Vector2.zero && rawLines[line1Id][1] != Vector2.zero);
-
-                Debug.Assert(rawLines[line2Id][0] != Vector2.zero && rawLines[line2Id][1] != Vector2.zero);
-
-                // (line1, line2) -> line1
-
-                int common1 = -1;
-                int common2 = -1;
-
-                for (int i = 0; i < 2; i++)
-                {
-                    for (int j = 0; j < 2; j++)
-                    {
-                        if (rawLines[line1Id][i] == rawLines[line2Id][j])
-                        {
-                            Debug.Assert(common1 == -1 && common2 == -1);
-                            common1 = i;
-                            common2 = j;
-                        }
-                    }
-                }
-
-                Debug.Assert(common1 != -1 && common2 != -1);
-
-                int Rev(int x) => x == 0 ? 1 : 0;
-
-                var curLine = rawLines[line1Id];
-
-                curLine[common1] = rawLines[line2Id][Rev(common2)];
-                curLine.realLength += rawLines[line2Id].realLength;
-
-                rawLines[line1Id] = curLine;
-                
-
-                rawLines[line2Id] = new Line(Vector2.zero, Vector2.zero);
-
-                foreach (var p in points)
-                {
-                    for (int i = 0; i < p.Value.Count; i++)
-                    {
-                        if (p.Value[i] == line2Id)
-                            p.Value[i] = line1Id;
-                    }
-                }
-
-                //Debug.Assert(rawLinesIdTable[line1Id] == 175);
-                //rawLinesIdTable[line2Id] = rawLinesIdTable[line1Id];
-
-                //Console.WriteLine("Rm ln");
-            }
-        }
-
-        //rawLines.RemoveAll(x => x[0] == Vector2.zero || x[1] == Vector2.zero);
-
 
         // int is rawLines index; Guid is pipes key
         Dictionary<int, Guid> convertedRawLines = new();
@@ -253,7 +209,7 @@ public class ThermalConvert
 
             if (ctpsPointsSet.Contains(point.Key))
             {
-                Debug.Assert(pointType == Node.Type.Unknown);
+                Debug.Assert(pointType == Node.Type.Unknown || pointType == Node.Type.Cross);
                 pointType = Node.Type.Ctp;
             }
 
@@ -269,37 +225,45 @@ public class ThermalConvert
                 pointType = Node.Type.Consumer;
             }
 
-            //Debug.Assert(pointType != Node.Type.Unknown);
             if (pointType == Node.Type.Unknown) { continue; }
 
             Guid nodeId = Guid.NewGuid();
-            nodes.Add(nodeId, new Node { pos = point.Key, type = pointType, uuid = nodeId });
+            nodes.Add(nodeId, new Node { pos = point.Key, type = pointType, uuid = nodeId, kafkaNodeId = Guid.NewGuid() });
 
-            for (int i = 0; i < point.Value.Count; i++) 
+            for (int i = 0; i < point.Value.Count; i++)
             {
-                if (convertedRawLines.ContainsKey(point.Value[i]))
+                Guid pipeId;
+                if (!convertedRawLines.ContainsKey(point.Value[i]))
                 {
-                    pipes[convertedRawLines[point.Value[i]]].undirected.Add(nodeId);
-                }
-                else
-                {
-                    Guid pipeId = Guid.NewGuid();
-                    pipes.Add(pipeId, new Pipe { uuid = pipeId, length = rawLines[point.Value[i]].realLength });
-                    pipes[pipeId].undirected.Add(nodeId);
+                    pipeId = Guid.NewGuid();
+                    pipes.Add(pipeId, new Pipe { 
+                        uuid = pipeId, 
+                        length = rawLines[point.Value[i]].realLength, 
+                        realPath = rawLines[point.Value[i]].realPath,
+                        kafkaEdgeId = Guid.NewGuid(),
+                    });
 
                     convertedRawLines.Add(point.Value[i], pipeId);
                 }
+                else
+                {
+                    pipeId = convertedRawLines[point.Value[i]];
+                }
+
+                nodes[nodeId].connectedPipesIds.Add(pipeId);
+
+                if (point.Key == rawLines[point.Value[i]].start)
+                    pipes[pipeId].inputId = nodeId;
+                else if (point.Key == rawLines[point.Value[i]].end)
+                    pipes[pipeId].outputId = nodeId;
+                else
+                    throw new Exception();
             }
         }
 
-        //Console.WriteLine(nodes.Count);
-        //Console.WriteLine(pipes.Count);
-        //Console.WriteLine(points.Count);
-        //Console.WriteLine(rawLines.Count);
 
-
-        ReportGenerator.SavePipes([.. pipes.Values]);
-        ReportGenerator.SaveNodes([.. nodes.Values]);
+        // Пока что удаляю трубы без конца
+        graph.pipes.RemoveAll(x => x.Value.outputId == Guid.Empty);
 
 
         //int index = 100;
@@ -331,6 +295,6 @@ public class ThermalConvert
 
         //GeoJson.WriteToFile(Path.Combine(dataFolderPath, "generated.geojson"), geo);
 
-        return;
+        return graph;
     }
 }

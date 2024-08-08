@@ -169,7 +169,7 @@ public static class GeoJson
             var point = data.features[i].geometry as FeatureGeometryPoint;
             Debug.Assert(point != null);
 
-            point.coordinates = point.coordinates.MakeRound();
+            //point.coordinates = point.coordinates.MakeRound();
             set.Add(point.coordinates);
         }
         return set;
