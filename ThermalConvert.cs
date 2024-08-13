@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
+using System.Text.Json;
 using static ThermalConverter.ThermalConvert;
 
 namespace ThermalConverter;
@@ -55,8 +57,19 @@ public class ThermalConvert
     {
         public Dictionary<Guid, Pipe> pipes { get; } = new();
         public Dictionary<Guid, Node> nodes { get; } = new();
+        
     }
 
+    public enum UnitType
+    {
+        Unknown,
+        Section,
+        Cross,
+        Source,
+        Consumer,
+        Ctp
+    }
+    
     public class Pipe
     {
         public Guid inputId;
@@ -65,6 +78,7 @@ public class ThermalConvert
         public Guid uuid;
         public Guid kafkaEdgeId;
         public ReadOnlyCollection<Vector2> realPath;
+        public ReadOnlyDictionary<string, object?> properties;
 
         public override string ToString()
         {
@@ -73,20 +87,14 @@ public class ThermalConvert
     }
     public class Node
     {
-        public enum Type
-        {
-            Unknown,
-            Cross,
-            Source,
-            Consumer,
-            Ctp
-        }
+        
 
-        public Type type;
+        public UnitType type;
         public Vector2 pos;
         public Guid uuid;
         public Guid kafkaNodeId;
         public List<Guid> connectedPipesIds = new();
+        public ReadOnlyDictionary<string, object?> properties;
 
         public override string ToString()
         {
@@ -94,13 +102,14 @@ public class ThermalConvert
         }
     }
 
-    public struct Line(Vector2 start, Vector2 end, double realLength, List<Vector2> realPath)
+    public struct Line(Vector2 start, Vector2 end, double realLength, List<Vector2> realPath, Dictionary<string, object?> properties)
     {
         public Vector2 start { get; set; } = start;
         public Vector2 end { get; set; } = end;
         public double realLength { get; } = realLength;
 
         public ReadOnlyCollection<Vector2> realPath { get; } = realPath.AsReadOnly();
+        public ReadOnlyDictionary<string, object?> properties { get; } = properties.AsReadOnly();
 
         public Vector2 this[int key]
         {
@@ -114,29 +123,31 @@ public class ThermalConvert
         }
     }
 
-    public Graph BuidGraph(string dataFolderPath)
+    public record Args(Dictionary<UnitType, string> files, string propertyMapFile);
+
+    private readonly Args _args;
+    private readonly GeoJsonTools _geoJson;
+    public ThermalConvert(Args args)
     {
-        var sections = GeoJson.ReadFromFile(Path.Combine(dataFolderPath, "section.geojson"));
-        var ctps = GeoJson.ReadFromFile(Path.Combine(dataFolderPath, "ctp.geojson"));
-        var sources = GeoJson.ReadFromFile(Path.Combine(dataFolderPath, "sourse.geojson")); // в 'Теплосети Бердск'/sourse.geojson опечатка 
-        var consumers = GeoJson.ReadFromFile(Path.Combine(dataFolderPath, "consumer.geojson"));
+        _args = args;
+        
+        var propMapText = File.ReadAllText(args.propertyMapFile);
+        var propMap = 
+            JsonSerializer.Deserialize<Dictionary<string, string>>(propMapText) ?? new();
+        
+        _geoJson = new GeoJsonTools(propMap);
+    }
+    
+    public Graph BuildGraph()
+    {
+        var sections = _geoJson.ReadFromFile(_args.files[UnitType.Section]);
+        var ctps = _geoJson.ReadFromFile(_args.files[UnitType.Ctp]);
+        var sources = _geoJson.ReadFromFile(_args.files[UnitType.Source]);
+        var consumers = _geoJson.ReadFromFile(_args.files[UnitType.Consumer]);
 
-        //for (int i = 0; i < sections.features.Count; i++)
-        //{
-        //    var lines = sections.features[i].geometry as FeatureGeometryMultiLineString;
-        //    Debug.Assert(lines != null);
-        //    Debug.Assert(lines.coordinates.Count == 1);
-
-        //    for (int j = 0; j < lines.coordinates[0].Count; j++)
-        //    {
-        //        lines.coordinates[0][j] = lines.coordinates[0][j].MakeRound();
-        //    }
-        //}
-
-
-        var ctpsPointsSet = GeoJson.MakeSetOfThePoints(ctps);
-        var sourcesPointsSet = GeoJson.MakeSetOfThePoints(sources);
-        var consumersPointsSet = GeoJson.MakeSetOfThePoints(consumers);
+        var ctpsPointsSet = _geoJson.MakeSetOfThePoints(ctps);
+        var sourcesPointsSet = _geoJson.MakeSetOfThePoints(sources);
+        var consumersPointsSet = _geoJson.MakeSetOfThePoints(consumers);
 
 
         //points value is rawLines index
@@ -166,7 +177,13 @@ public class ThermalConvert
             var beginPoint = lines.coordinates[0][0];
             var endPoint = lines.coordinates[0][^1];
 
-            rawLines.Add(new Line(beginPoint, endPoint, length, lines.coordinates[0]));
+            rawLines.Add(new Line(
+                beginPoint, 
+                endPoint, 
+                length, 
+                lines.coordinates[0],
+                _geoJson.GetPropertiesOfFeatureData(sections.features[i]))
+                );
 
 
             if (points.TryGetValue(beginPoint, out var va))
@@ -187,10 +204,7 @@ public class ThermalConvert
         {
             for (int j = 0; j < 2; j++)
             {
-                if (points[rawLines[i][j]].Count > 1) // one or more edges
-                {
-                    crosses.Add(rawLines[i][j]);
-                }
+                crosses.Add(rawLines[i][j]); // All starts and ends of lines is cross
             }
         }
 
@@ -199,36 +213,48 @@ public class ThermalConvert
 
         foreach (var point in points)
         {
-            Node.Type pointType = Node.Type.Unknown;
+            UnitType pointType = UnitType.Unknown;
+            Dictionary<string, object?>? pointProperties = null;
 
             if (crosses.Contains(point.Key))
             {
-                Debug.Assert(pointType == Node.Type.Unknown);
-                pointType = Node.Type.Cross;
+                Debug.Assert(pointType == UnitType.Unknown);
+                pointType = UnitType.Cross;
             }
 
             if (ctpsPointsSet.Contains(point.Key))
             {
-                Debug.Assert(pointType == Node.Type.Unknown || pointType == Node.Type.Cross);
-                pointType = Node.Type.Ctp;
+                Debug.Assert(pointType == UnitType.Unknown || pointType == UnitType.Cross);
+                pointType = UnitType.Ctp;
+                pointProperties = _geoJson.GetPropertiesOfThePoint(ctps, point.Key);
             }
 
             if (sourcesPointsSet.Contains(point.Key))
             {
-                Debug.Assert(pointType == Node.Type.Unknown || pointType == Node.Type.Cross);
-                pointType = Node.Type.Source;
+                Debug.Assert(pointType == UnitType.Unknown || pointType == UnitType.Cross);
+                pointType = UnitType.Source;
+                pointProperties = _geoJson.GetPropertiesOfThePoint(sources, point.Key);
             }
 
             if (consumersPointsSet.Contains(point.Key))
             {
-                Debug.Assert(pointType == Node.Type.Unknown);
-                pointType = Node.Type.Consumer;
+                Debug.Assert(pointType == UnitType.Unknown || pointType == UnitType.Cross);
+                pointType = UnitType.Consumer;
+                pointProperties = _geoJson.GetPropertiesOfThePoint(consumers, point.Key);
             }
 
-            if (pointType == Node.Type.Unknown) { continue; }
+            if (pointType == UnitType.Unknown) { continue; }
+
+            pointProperties ??= new();
 
             Guid nodeId = Guid.NewGuid();
-            nodes.Add(nodeId, new Node { pos = point.Key, type = pointType, uuid = nodeId, kafkaNodeId = Guid.NewGuid() });
+            nodes.Add(nodeId, new Node { 
+                pos = point.Key, 
+                type = pointType, 
+                uuid = nodeId, 
+                kafkaNodeId = Guid.NewGuid(),
+                properties = pointProperties.AsReadOnly()
+            });
 
             for (int i = 0; i < point.Value.Count; i++)
             {
@@ -241,6 +267,7 @@ public class ThermalConvert
                         length = rawLines[point.Value[i]].realLength, 
                         realPath = rawLines[point.Value[i]].realPath,
                         kafkaEdgeId = Guid.NewGuid(),
+                        properties = rawLines[point.Value[i]].properties.AsReadOnly()
                     });
 
                     convertedRawLines.Add(point.Value[i], pipeId);
@@ -261,24 +288,19 @@ public class ThermalConvert
             }
         }
 
-
-        // Пока что удаляю трубы без конца
-        graph.pipes.RemoveAll(x => x.Value.outputId == Guid.Empty);
-
-
         //int index = 100;
         //GeoJsonData geo = new()
         //{
         //    type = "FeatureCollection",
         //    name = "lines",
-        //    features = rawLines.Select(ln => new GeoJsonFeatureData()
+        //    features = str.Select(ln => new GeoJsonFeatureData()
         //    {
         //        type = "Feature",
         //        properties = new Dictionary<string, object>() { { "Sys", index++ } },
-        //        geometry = new FeatureGeometryMultiLineString() { coordinates = [[ln[0], ln[1]]], type = FeatureGeometry.Type.MultiLineString }
+        //        geometry = new FeatureGeometryMultiLineString() { coordinates = [[ln.Value.realPath[0], ln.Value.realPath[^1]]], type = FeatureGeometry.Type.MultiLineString }
         //    }).ToList()
         //};
-        //GeoJson.WriteToFile(Path.Combine(dataFolderPath, "generated_lines.geojson"), geo);
+        //GeoJson.WriteToFile(Path.Combine(dataFolderPath, "generated_lines_str.geojson"), geo);
 
         //int index = 100;
         //GeoJsonData geo = new()
@@ -297,4 +319,5 @@ public class ThermalConvert
 
         return graph;
     }
+
 }

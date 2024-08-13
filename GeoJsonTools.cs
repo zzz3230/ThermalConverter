@@ -33,10 +33,13 @@ public class FeatureGeometryPoint : FeatureGeometry
 public class GeoJsonFeatureData
 {
     public string type { get; set; }
+
+    // Not use directly.
     public Dictionary<string, object> properties { get; set; }
     
     [JsonConverter(typeof(FeatureGeometryConverter))]
     public FeatureGeometry geometry { get; set; }
+
 }
 public class GeoJsonData
 {
@@ -44,6 +47,7 @@ public class GeoJsonData
     public string name { get; set; } = "";
     public object crs { get; } = new { type = "name", properties = new {name = "urn:ogc:def:crs:EPSG::3857"} };
     public List<GeoJsonFeatureData>  features { get; set; }
+
 }
 
 
@@ -110,25 +114,26 @@ public class FeatureGeometryConverter : JsonConverter<FeatureGeometry>
 
     public override void Write(Utf8JsonWriter writer, FeatureGeometry value, JsonSerializerOptions options)
     {
-        if (value is FeatureGeometryPoint pointGeo)
+        switch (value)
         {
-            JsonSerializer.Serialize(writer, pointGeo, options);
-        }
-        else if (value is FeatureGeometryMultiLineString lineGeo)
-        {
-            JsonSerializer.Serialize(writer, lineGeo, options);
-        }
-        else
-        {
-            throw new JsonException();
+            case FeatureGeometryPoint pointGeo:
+                JsonSerializer.Serialize(writer, pointGeo, options);
+                break;
+            case FeatureGeometryMultiLineString lineGeo:
+                JsonSerializer.Serialize(writer, lineGeo, options);
+                break;
+            default:
+                throw new JsonException();
         }
     }
 }
 
 
-public static class GeoJson
+public class GeoJsonTools(Dictionary<string, string> propertiesNamesMapper)
 {
-    public static GeoJsonData ReadFromFile(string fileName)
+    Dictionary<string, string> propertiesNamesMapper { get; } = propertiesNamesMapper;
+
+    public GeoJsonData ReadFromFile(string fileName)
     {
         var options = new JsonSerializerOptions
         {
@@ -145,7 +150,7 @@ public static class GeoJson
         return geo;
     }
 
-    public static void WriteToFile(string fileName, GeoJsonData data)
+    public void WriteToFile(string fileName, GeoJsonData data)
     {
         var options = new JsonSerializerOptions
         {
@@ -161,7 +166,7 @@ public static class GeoJson
         File.WriteAllText(fileName, geoJson);
     }
 
-    public static HashSet<Vector2> MakeSetOfThePoints(GeoJsonData data)
+    public HashSet<Vector2> MakeSetOfThePoints(GeoJsonData data)
     {
         HashSet<Vector2> set = new();
         for (int i = 0; i < data.features.Count; i++)
@@ -173,5 +178,36 @@ public static class GeoJson
             set.Add(point.coordinates);
         }
         return set;
+    }
+
+    KeyValuePair<string, object?>? MapProperty(string name, object value)
+    {
+        if (propertiesNamesMapper.ContainsKey(name))
+        {
+            return new KeyValuePair<string, object?>(propertiesNamesMapper[name], value);
+        }
+        return null;
+    }
+
+    public Dictionary<string, object?>? GetPropertiesOfThePoint(GeoJsonData data, Vector2 point)
+    {
+        for (int i = 0; i < data.features.Count; i++)
+        {
+            var feature = data.features[i];
+            if (feature.geometry is FeatureGeometryPoint pointFeature && pointFeature.coordinates == point)
+            {
+                return feature.properties.Select(x => MapProperty(x.Key, x.Value))
+                    .Where(x => x.HasValue)
+                    .ToDictionary(x => x!.Value.Key, x => x!.Value.Value);
+            }
+        }
+        return null;
+    }
+
+    public Dictionary<string, object?> GetPropertiesOfFeatureData(GeoJsonFeatureData data)
+    {
+        return data.properties.Select(x => MapProperty(x.Key, x.Value))
+            .Where(x => x.HasValue)
+            .ToDictionary(x => x!.Value.Key, x => x!.Value.Value);
     }
 }

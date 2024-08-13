@@ -1,20 +1,29 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Text.Json;
+using static ThermalConverter.ThermalConvert;
 
 namespace ThermalConverter
 {
     internal static class ReportGenerator
     {
+        public static int maxObjectsCountPerMessage { get; set; }
+        public static bool writeIndented { get; set; }
+
         public static void SaveGraphEdges(ThermalConvert.Graph graph, string outputFileName)
         {
             List<ThermalConvert.Pipe> pipes = graph.pipes.Values.ToList();
 
-            var outputData = new
+            int fileIndex = 0;
+
+            for (int i = 0; i < pipes.Count / maxObjectsCountPerMessage + 1; i++)
             {
-                MessageId = "c3b5d91c-a98a-4088-878f-d5d08763c0be",
-                ModelId = "6146a6e9-b00f-4522-9c3b-e007a2b87ba1",
-                Data = pipes.Select(pipe => new {
+                int start = maxObjectsCountPerMessage * fileIndex;
+                int end = Math.Min(maxObjectsCountPerMessage * (fileIndex + 1), pipes.Count);
+
+                var outputData = MakeMessage(pipes[start..end].Select(pipe => new
+                {
                     isReference = false,
                     type = "GraphEdge",
                     rowId = -1,
@@ -34,11 +43,14 @@ namespace ThermalConverter
                         },
                         element = new { gatheringNetworkId = "ff225d04-d3ad-4a6c-a86a-a9f60b812a0a" }
                     }
-                })
-            };
+                }));
 
-            var outputJson = JsonSerializer.Serialize(outputData);
-            File.WriteAllText(outputFileName, outputJson);
+                var outputJson = JsonSerializer.Serialize(outputData, new JsonSerializerOptions() { WriteIndented = writeIndented });
+                File.WriteAllText($"{outputFileName}_{fileIndex}.json", outputJson);
+
+                fileIndex++;
+            }
+
         }
 
 
@@ -46,11 +58,15 @@ namespace ThermalConverter
         {
             List<ThermalConvert.Node> nodes = graph.nodes.Values.ToList();
 
-            var outputData = new
+            int fileIndex = 0;
+
+            for (int i = 0; i < nodes.Count / maxObjectsCountPerMessage + 1; i++)
             {
-                MessageId = "c3b5d91c-a98a-4088-878f-d5d08763c0be",
-                ModelId = "6146a6e9-b00f-4522-9c3b-e007a2b87ba1",
-                Data = nodes.Select(node => new {
+                int start = maxObjectsCountPerMessage * fileIndex;
+                int end = Math.Min(maxObjectsCountPerMessage * (fileIndex + 1), nodes.Count);
+
+                var outputData = MakeMessage(nodes[start..end].Select(node => new
+                {
                     isReference = false,
                     type = "GraphNode",
                     rowId = -1,
@@ -67,23 +83,32 @@ namespace ThermalConverter
                             }
                         }
                     }
-                })
-            };
+                }));
 
-            var outputJson = JsonSerializer.Serialize(outputData);
-            File.WriteAllText(outputFileName, outputJson);
+                var outputJson = JsonSerializer.Serialize(outputData, new JsonSerializerOptions() { WriteIndented = writeIndented });
+                File.WriteAllText($"{outputFileName}_{fileIndex}.json", outputJson);
+
+                fileIndex++;
+            }
+
+            
         }
 
         public static void SaveNodes(ThermalConvert.Graph graph, string outputFileName)
         {
             List<ThermalConvert.Node> nodes = graph.nodes.Values.ToList();
-
+            
             var nodeIndex = 0;
-            var outputData = new
+
+            int fileIndex = 0;
+
+            for (int i = 0; i < nodes.Count / maxObjectsCountPerMessage + 1; i++)
             {
-                MessageId = "c3b5d91c-a98a-4088-878f-d5d08763c0be",
-                ModelId = "6146a6e9-b00f-4522-9c3b-e007a2b87ba1",
-                Data = nodes.Select(node => new {
+                int start = maxObjectsCountPerMessage * fileIndex;
+                int end = Math.Min(maxObjectsCountPerMessage * (fileIndex + 1), nodes.Count);
+
+                var outputData = MakeMessage(nodes[start..end].Select(node => new
+                {
                     isReference = false,
                     type = "Node",
                     rowId = -1,
@@ -93,45 +118,69 @@ namespace ThermalConverter
                         nameShortRu = $"Node {nodeIndex++}",
                         element = new { gatheringNetworkId = "ff225d04-d3ad-4a6c-a86a-a9f60b812a0a" }
                     }
-                })
-            };
+                }));
 
-            var outputJson = JsonSerializer.Serialize(outputData);
-            File.WriteAllText(outputFileName, outputJson);
+                var outputJson = JsonSerializer.Serialize(outputData, new JsonSerializerOptions() { WriteIndented = writeIndented });
+                File.WriteAllText($"{outputFileName}_{fileIndex}.json", outputJson);
+
+                fileIndex++;
+            }
+            
         }
 
-        public static void SavePipeliens(ThermalConvert.Graph graph, string outputFileName)
+        public static void SavePipeliens(Graph graph, string outputFileName)
         {
-            List<ThermalConvert.Pipe> pipes = graph.pipes.Values.ToList();
+            List<Pipe> pipes = graph.pipes.Values.ToList();
 
             var pipeIndex = 0;
-            var outputData = new
+
+            int fileIndex = 0;
+
+            for (int i = 0; i < pipes.Count / maxObjectsCountPerMessage + 1; i++) 
+            {
+                int start = maxObjectsCountPerMessage * fileIndex;
+                int end = Math.Min(maxObjectsCountPerMessage * (fileIndex + 1), pipes.Count);
+
+                var outputData = MakeMessage(
+                    pipes[start..end].Select(pipe => new
+                    {
+                        isReference = false,
+                        type = "Pipeline",
+                        rowId = -1,
+                        data = new
+                        {
+                            globalId = pipe.uuid.ToString(),
+                            nameShortRu = $"Pipeline {pipeIndex++}",
+                            pipeline = new Dictionary<string, object>()
+                            {
+                                { "clientID", "00000000-0000-0000-0000-000000000000" },
+                                { "length", pipe.length.ToString(CultureInfo.InvariantCulture) },
+                                
+                                //sidewallThickness = 0.14,
+                                //diameterInner = 0.87,
+                                //diameterOuter = 0.95,
+                            }.Concat(pipe.properties).ToDictionary(x => x.Key, x => x.Value),
+                            element = new { gatheringNetworkId = "ff225d04-d3ad-4a6c-a86a-a9f60b812a0a" }
+                        }
+                    })
+                    );
+
+                var outputJson = JsonSerializer.Serialize(outputData, new JsonSerializerOptions() { WriteIndented = writeIndented });
+                File.WriteAllText($"{outputFileName}_{fileIndex}.json", outputJson);
+
+
+                fileIndex++;
+            }
+        }
+
+        static object MakeMessage(object data)
+        {
+            return new
             {
                 MessageId = "c3b5d91c-a98a-4088-878f-d5d08763c0be",
                 ModelId = "6146a6e9-b00f-4522-9c3b-e007a2b87ba1",
-                Data = pipes.Select(pipe => new {
-                    isReference = false,
-                    type = "Pipeline",
-                    rowId = -1,
-                    data = new
-                    {
-                        globalId = pipe.uuid.ToString(),
-                        nameShortRu = $"Pipeline {pipeIndex++}",
-                        pipeline = new 
-                        {
-                            clientID = "00000000-0000-0000-0000-000000000000",
-                            length = pipe.length,
-                            //sidewallThickness = 0.14,
-                            //diameterInner = 0.87,
-                            //diameterOuter = 0.95,
-                        },
-                        element = new { gatheringNetworkId = "ff225d04-d3ad-4a6c-a86a-a9f60b812a0a" }
-                    }
-                })
+                Data = data
             };
-
-            var outputJson = JsonSerializer.Serialize(outputData);
-            File.WriteAllText(outputFileName, outputJson);
         }
     }
 }
