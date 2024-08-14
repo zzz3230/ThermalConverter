@@ -8,8 +8,99 @@ namespace ThermalConverter
 {
     internal static class ReportGenerator
     {
-        public static int maxObjectsCountPerMessage { get; set; }
+        private static int _maxObjectsCountPerMessage;
+        public static int maxObjectsCountPerMessage 
+        { 
+            get => _maxObjectsCountPerMessage; 
+            set 
+            { 
+                if (value <= 1) 
+                    throw new ArgumentOutOfRangeException(nameof(value), "Value must be greater than 1");
+                _maxObjectsCountPerMessage = value; 
+            } 
+        }
+        
         public static bool writeIndented { get; set; }
+
+        public static void SaveAllNodes(Graph graph, string outputFileName)
+        {
+            
+            
+            List<ThermalConvert.Node> nodes = graph.nodes.Values.ToList();
+            
+            var nodeIndex = 0;
+
+            int fileIndex = 0;
+
+            for (;;)
+            {
+                List<object> inData = [];
+
+                for (;;)
+                {
+                    if (nodeIndex >= nodes.Count)
+                    {
+                        break;
+                    }
+                    
+                    
+                    inData.Add(
+                        new
+                        {
+                            isReference = false,
+                            type = "Node",
+                            rowId = -1,
+                            data = new
+                            {
+                                globalId = nodes[nodeIndex].uuid.ToString(),
+                                nameShortRu = $"Node {nodeIndex}",
+                                element = new { gatheringNetworkId = "ff225d04-d3ad-4a6c-a86a-a9f60b812a0a" }
+                            }
+                        }
+                        );
+                    
+                    inData.Add(
+                        new
+                        {
+                            isReference = false,
+                            type = "GraphNode",
+                            rowId = -1,
+                            data = new
+                            {
+                                globalId = nodes[nodeIndex].kafkaNodeId,
+                                graphNode = new
+                                {
+                                    elementId = nodes[nodeIndex].uuid.ToString(),
+                                    point = new
+                                    {
+                                        coordinates = new[] { nodes[nodeIndex].pos.x, nodes[nodeIndex].pos.y },
+                                        type = "Point"
+                                    }
+                                }
+                            }
+                        }
+                        );
+
+                    
+
+                    nodeIndex++;
+                    if (maxObjectsCountPerMessage - inData.Count < 2) // need at lest two
+                    {
+                        break;
+                    }
+                }
+
+                if (inData.Count == 0)
+                    break;
+                
+                var outputData = MakeMessage(inData);
+
+                var outputJson = JsonSerializer.Serialize(outputData, new JsonSerializerOptions() { WriteIndented = writeIndented });
+                File.WriteAllText($"{outputFileName}_{fileIndex}.json", outputJson);
+
+                fileIndex++;
+            }
+        }
 
         public static void SaveGraphEdges(ThermalConvert.Graph graph, string outputFileName)
         {
@@ -128,7 +219,7 @@ namespace ThermalConverter
             
         }
 
-        public static void SavePipeliens(Graph graph, string outputFileName)
+        public static void SavePipelines(Graph graph, string outputFileName)
         {
             List<Pipe> pipes = graph.pipes.Values.ToList();
 

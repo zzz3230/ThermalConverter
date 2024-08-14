@@ -1,7 +1,7 @@
 ﻿using ThermalConverter;
 
 
-string dataFolderPath = "C:\\Users\\zzz32\\Downloads\\Telegram Desktop\\Теплосети Бердск\\geojson/tests";
+string dataFolderPath = "C:\\Users\\zzz32\\Downloads\\Telegram Desktop\\Теплосети Бердск\\geojson";
 
 ThermalConvert.Args thArgs = new(
     new(){
@@ -38,8 +38,9 @@ if (!Directory.Exists(outDir)) Directory.CreateDirectory(outDir);
 
 ReportGenerator.writeIndented = true;
 
-ReportGenerator.SaveNodes(thGraph,      Path.Combine(outDir, "node_kafka"));
-ReportGenerator.SavePipeliens(thGraph,  Path.Combine(outDir, "pipeline_kafka"));
-ReportGenerator.SaveGraphNodes(thGraph, Path.Combine(outDir, "graph_node_kafka"));
-ReportGenerator.SaveGraphEdges(thGraph, Path.Combine(outDir, "graph_edge_kafka"));
+// ReportGenerator.SaveNodes(thGraph,      Path.Combine(outDir, "node_kafka"));
+// ReportGenerator.SavePipeliens(thGraph,  Path.Combine(outDir, "pipeline_kafka"));
+// ReportGenerator.SaveGraphNodes(thGraph, Path.Combine(outDir, "graph_node_kafka"));
+// ReportGenerator.SaveGraphEdges(thGraph, Path.Combine(outDir, "graph_edge_kafka"));
 
+ReportGenerator.SaveAllNodes(thGraph, Path.Combine(outDir, "all_nodes_kafka"));
