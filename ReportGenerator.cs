@@ -54,6 +54,7 @@ namespace ThermalConverter
                             {
                                 globalId = nodes[nodeIndex].uuid.ToString(),
                                 nameShortRu = $"Node {nodeIndex}",
+                                node = nodes[nodeIndex].properties,
                                 element = new { gatheringNetworkId = "ff225d04-d3ad-4a6c-a86a-a9f60b812a0a" }
                             }
                         }

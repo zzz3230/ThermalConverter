@@ -1,7 +1,7 @@
 ﻿using ThermalConverter;
 
 
-string dataFolderPath = "C:\\Users\\zzz32\\Downloads\\Telegram Desktop\\Теплосети Бердск\\geojson";
+string dataFolderPath = "C:\\Users\\zzz32\\Downloads\\Telegram Desktop\\Теплосети Бердск\\geojson\\tests";
 
 ThermalConvert.Args thArgs = new(
     new(){
