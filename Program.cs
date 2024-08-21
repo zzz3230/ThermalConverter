@@ -20,7 +20,9 @@ var thGraph = tc.BuildGraph();
 // Save graph preview
 //GraphRenderer.RenderAndSaveToFile(thGraph, "output2.jpg");
 
-var maxObjectsCountStr = Environment.GetEnvironmentVariable("ThermalConverter.maxObjectsCountPerMessage", EnvironmentVariableTarget.User);
+var maxObjectsCountStr = 
+    Environment.GetEnvironmentVariable("ThermalConverter.maxObjectsCountPerMessage", EnvironmentVariableTarget.User)
+    ?? "400";
 if(int.TryParse(maxObjectsCountStr, out var maxObjectsCount))
 {
     ReportGenerator.maxObjectsCountPerMessage = maxObjectsCount;
@@ -36,7 +38,7 @@ else
 var outDir = "out";
 if (!Directory.Exists(outDir)) Directory.CreateDirectory(outDir);
 
-ReportGenerator.writeIndented = true;
+//ReportGenerator.writeIndented = true;
 
 // ReportGenerator.SaveNodes(thGraph,      Path.Combine(outDir, "node_kafka"));
  ReportGenerator.SavePipelines(thGraph,  Path.Combine(outDir, "pipeline_kafka"));

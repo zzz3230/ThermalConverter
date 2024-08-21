@@ -108,7 +108,8 @@ namespace ThermalConverter
             List<ThermalConvert.Pipe> pipes = graph.pipes.Values.ToList();
 
             int fileIndex = 0;
-
+            var pipeIndex = 0;
+            
             for (int i = 0; i < pipes.Count / maxObjectsCountPerMessage + 1; i++)
             {
                 int start = maxObjectsCountPerMessage * fileIndex;
@@ -125,6 +126,7 @@ namespace ThermalConverter
                         graphEdge = new
                         {
                             elementId = pipe.uuid.ToString(),
+                            nameShortRu = $"Pipeline {pipeIndex++}",
                             targetGraphNodeId = graph.nodes[pipe.outputId].kafkaNodeId.ToString(),
                             sourceGraphNodeId = graph.nodes[pipe.inputId].kafkaNodeId.ToString(),
                             lineString = new
