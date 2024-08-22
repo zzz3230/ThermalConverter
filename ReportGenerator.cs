@@ -6,9 +6,9 @@ using static ThermalConverter.ThermalConvert;
 
 namespace ThermalConverter
 {
-    internal static class ReportGenerator
+    public static class ReportGenerator
     {
-        private static int _maxObjectsCountPerMessage;
+        private static int _maxObjectsCountPerMessage = 400;
         public static int maxObjectsCountPerMessage 
         { 
             get => _maxObjectsCountPerMessage; 
@@ -22,15 +22,21 @@ namespace ThermalConverter
         
         public static bool writeIndented { get; set; }
 
-        public static void SaveAllNodes(Graph graph, string outputFileName)
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="graph"></param>
+        /// <param name="outputFileName"></param>
+        /// <returns>Saved files name</returns>
+        public static List<string> SaveAllNodes(Graph graph, string outputFileName)
         {
-            
-            
             List<ThermalConvert.Node> nodes = graph.nodes.Values.ToList();
             
             var nodeIndex = 0;
 
             int fileIndex = 0;
+
+            List<string> savedFiles = [];
 
             for (;;)
             {
@@ -98,17 +104,22 @@ namespace ThermalConverter
 
                 var outputJson = JsonSerializer.Serialize(outputData, new JsonSerializerOptions() { WriteIndented = writeIndented });
                 File.WriteAllText($"{outputFileName}_{fileIndex}.json", outputJson);
+                savedFiles.Add($"{outputFileName}_{fileIndex}.json");
 
                 fileIndex++;
             }
+
+            return savedFiles;
         }
 
-        public static void SaveGraphEdges(ThermalConvert.Graph graph, string outputFileName)
+        public static List<string> SaveGraphEdges(ThermalConvert.Graph graph, string outputFileName)
         {
             List<ThermalConvert.Pipe> pipes = graph.pipes.Values.ToList();
 
             int fileIndex = 0;
             var pipeIndex = 0;
+            
+            List<string> savedFiles = [];
             
             for (int i = 0; i < pipes.Count / maxObjectsCountPerMessage + 1; i++)
             {
@@ -141,10 +152,12 @@ namespace ThermalConverter
 
                 var outputJson = JsonSerializer.Serialize(outputData, new JsonSerializerOptions() { WriteIndented = writeIndented });
                 File.WriteAllText($"{outputFileName}_{fileIndex}.json", outputJson);
+                savedFiles.Add($"{outputFileName}_{fileIndex}.json");
 
                 fileIndex++;
             }
 
+            return savedFiles;
         }
 
 
@@ -222,13 +235,15 @@ namespace ThermalConverter
             
         }
 
-        public static void SavePipelines(Graph graph, string outputFileName)
+        public static List<string> SavePipelines(Graph graph, string outputFileName)
         {
             List<Pipe> pipes = graph.pipes.Values.ToList();
 
             var pipeIndex = 0;
 
             int fileIndex = 0;
+            
+            List<string> savedFiles = [];
 
             for (int i = 0; i < pipes.Count / maxObjectsCountPerMessage + 1; i++) 
             {
@@ -261,10 +276,12 @@ namespace ThermalConverter
 
                 var outputJson = JsonSerializer.Serialize(outputData, new JsonSerializerOptions() { WriteIndented = writeIndented });
                 File.WriteAllText($"{outputFileName}_{fileIndex}.json", outputJson);
-
+                savedFiles.Add($"{outputFileName}_{fileIndex}.json");
 
                 fileIndex++;
             }
+
+            return savedFiles;
         }
 
         static object MakeMessage(object data)

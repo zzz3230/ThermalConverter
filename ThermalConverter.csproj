@@ -18,6 +18,15 @@
       <None Update="property_map.json">
         <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       </None>
+      <None Remove="ThermalConverterWebApi\**" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Compile Remove="ThermalConverterWebApi\**" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <EmbeddedResource Remove="ThermalConverterWebApi\**" />
     </ItemGroup>
 
 </Project>
