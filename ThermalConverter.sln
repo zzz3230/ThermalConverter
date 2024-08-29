@@ -7,6 +7,10 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ThermalConverter", "Thermal
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ThermalConverterWebApi", "ThermalConverterWebApi\ThermalConverterWebApi.csproj", "{6764CA14-E08A-4586-8ABE-289ABD7AB83C}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReportSenderApi", "ReportSenderApi\ReportSenderApi.csproj", "{B21F9152-2117-4B6A-B98F-F202C3D742F8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GeneratedResourceClient", "generated-resources-client-develop\source\GeneratedResourceClient.csproj", "{E2504408-D295-4ED5-9ED9-75A13DE5437E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +25,14 @@ Global
 		{6764CA14-E08A-4586-8ABE-289ABD7AB83C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6764CA14-E08A-4586-8ABE-289ABD7AB83C}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{6764CA14-E08A-4586-8ABE-289ABD7AB83C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B21F9152-2117-4B6A-B98F-F202C3D742F8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B21F9152-2117-4B6A-B98F-F202C3D742F8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B21F9152-2117-4B6A-B98F-F202C3D742F8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B21F9152-2117-4B6A-B98F-F202C3D742F8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E2504408-D295-4ED5-9ED9-75A13DE5437E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E2504408-D295-4ED5-9ED9-75A13DE5437E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E2504408-D295-4ED5-9ED9-75A13DE5437E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E2504408-D295-4ED5-9ED9-75A13DE5437E}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

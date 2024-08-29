@@ -1,11 +1,27 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections;
 using System.Globalization;
 using System.Text.Json;
+using GeneratedResourceClient.GraphMaster.Tools;
 using static ThermalConverter.ThermalConvert;
+
+using MakeResultData = 
+    System.Collections.Generic.List<
+        System.Collections.Generic.IDictionary<
+            string, 
+            System.Collections.Generic.List<System.Collections.Generic.IDictionary<string, object>>
+        >
+    >;
 
 namespace ThermalConverter
 {
+    public class MakeResult
+    {
+        public MakeResultData data = new();
+        public Dictionary<string, List<string>> customParams = new();
+    }
+    
     public static class ReportGenerator
     {
         private static int _maxObjectsCountPerMessage = 400;
@@ -22,6 +38,80 @@ namespace ThermalConverter
         
         public static bool writeIndented { get; set; }
 
+        private const string NODE_OBJECT_NAME = "Node";
+        private const string GRAPH_NODE_OBJECT_NAME = "GraphNode";
+        private const string PIPELINE_OBJECT_NAME = "Pipeline";
+        private const string EDGE_OBJECT_NAME = "GraphEdge";
+        
+        public static MakeResult MakeAllNodes(Graph graph)
+        {
+            List<ThermalConvert.Node> nodes = graph.nodes.Values.ToList();
+            
+            var nodeIndex = 0;
+
+            MakeResult result = new();
+            
+            
+
+            for (;;)
+            {
+                List<IDictionary<string, object>> inDataNodes = [];
+                List<IDictionary<string, object>> inDataGraphNodes = [];
+                
+                for (;;)
+                {
+                    if (nodeIndex >= nodes.Count)
+                    {
+                        break;
+                    }
+
+                    inDataNodes.Add(new Dictionary<string, object>(nodes[nodeIndex].properties!)
+                    {
+                        {"id", nodes[nodeIndex].uuid.ToString()}, // globalId
+                        {"NameShortRu", $"Node {nodeIndex}"},
+                        {"type", NODE_OBJECT_NAME},
+                        {"gatheringNetworkId", "ff225d04-d3ad-4a6c-a86a-a9f60b812a0a"}
+                    });
+                    
+                    inDataGraphNodes.Add(new Dictionary<string, object>()
+                    {
+                        {"id", nodes[nodeIndex].kafkaNodeId.ToString()}, // globalId
+                        {"elementId", nodes[nodeIndex].uuid.ToString()},
+                        {"point", new
+                            {
+                                coordinates = new[] { nodes[nodeIndex].pos.x, nodes[nodeIndex].pos.y },
+                                type = "Point"
+                            }
+                        },
+                        {"type", GRAPH_NODE_OBJECT_NAME}
+                    });
+                    
+
+                    nodeIndex++;
+                    if (maxObjectsCountPerMessage - (inDataNodes.Count + inDataGraphNodes.Count) < 2) // need at lest two
+                    {
+                        break;
+                    }
+                }
+
+                if (inDataNodes.Count == 0)
+                    break;
+                
+                result.customParams.TryAdd(NODE_OBJECT_NAME, nodes[0].properties.Select(x => x.Key).Concat(["NameShortRu"]).ToList());
+                result.customParams.TryAdd(GRAPH_NODE_OBJECT_NAME, ["point", "elementId"]);
+                
+                result.data.Add(new Dictionary<string, List<IDictionary<string, object>>>()
+                {
+                    {NODE_OBJECT_NAME, inDataNodes},
+                    {GRAPH_NODE_OBJECT_NAME, inDataGraphNodes}
+                });
+
+            }
+
+            return result;
+        }
+        
+        
         /// <summary>
         /// 
         /// </summary>
@@ -112,6 +202,55 @@ namespace ThermalConverter
             return savedFiles;
         }
 
+        public static MakeResult MakeGraphEdges(Graph graph)
+        {
+            List<Pipe> pipes = graph.pipes.Values.ToList();
+            
+            MakeResult result = new();
+            
+            var pipeIndex = 0;
+
+            int fileIndex = 0;
+            
+            for (int i = 0; i < pipes.Count / maxObjectsCountPerMessage + 1; i++) 
+            {
+                int start = maxObjectsCountPerMessage * fileIndex;
+                int end = Math.Min(maxObjectsCountPerMessage * (fileIndex + 1), pipes.Count);
+
+                result.data.Add(new Dictionary<string, List<IDictionary<string, object>>>()
+                {
+                    {
+                        EDGE_OBJECT_NAME, 
+                        pipes[start..end].Select(pipe => (IDictionary<string, object>)new Dictionary<string, object>()
+                            {
+                                {"type", EDGE_OBJECT_NAME},
+                                {"nameShortRu", $"Pipeline {pipeIndex++}"},
+                                {"targetGraphNodeId", graph.nodes[pipe.outputId].kafkaNodeId.ToString()},
+                                {"sourceGraphNodeId", graph.nodes[pipe.inputId].kafkaNodeId.ToString()},
+                                {"lineString", new
+                                {
+                                    coordinates = pipe.realPath.Select(x => new[] { x.x, x.y }),
+                                    type = "LineString"
+                                }},
+                                {"gatheringNetworkId", "ff225d04-d3ad-4a6c-a86a-a9f60b812a0a"},
+                                {"id", pipe.kafkaEdgeId.ToString()},
+                                {"elementId", pipe.uuid.ToString()}
+                            }
+                        ).ToList()
+                    }
+                });
+                
+                fileIndex++;
+            }
+            
+            if(result.data.Count > 0)
+                result.customParams.Add(
+                    EDGE_OBJECT_NAME, 
+                    ["targetGraphNodeId", "sourceGraphNodeId", "NameShortRu", "lineString", "elementId"]
+                );
+
+            return result;
+        }
         public static List<string> SaveGraphEdges(ThermalConvert.Graph graph, string outputFileName)
         {
             List<ThermalConvert.Pipe> pipes = graph.pipes.Values.ToList();
@@ -235,6 +374,50 @@ namespace ThermalConverter
             
         }
 
+        public static MakeResult MakePipelines(Graph graph)
+        {
+            List<Pipe> pipes = graph.pipes.Values.ToList();
+            
+            MakeResult result = new();
+            
+            var pipeIndex = 0;
+
+            int fileIndex = 0;
+            
+            for (int i = 0; i < pipes.Count / maxObjectsCountPerMessage + 1; i++) 
+            {
+                int start = maxObjectsCountPerMessage * fileIndex;
+                int end = Math.Min(maxObjectsCountPerMessage * (fileIndex + 1), pipes.Count);
+
+                result.data.Add(new Dictionary<string, List<IDictionary<string, object>>>()
+                {
+                    {
+                        PIPELINE_OBJECT_NAME, 
+                        pipes[start..end].Select(pipe => (IDictionary<string, object>)new Dictionary<string, object>(pipe.properties)
+                        {
+                            {"type", PIPELINE_OBJECT_NAME},
+                            {"clientID", "00000000-0000-0000-0000-000000000000"},
+                            {"nameShortRu", $"Pipeline {pipeIndex++}"},
+                            {"length", pipe.length.ToString(CultureInfo.InvariantCulture) },
+                            {"gatheringNetworkId", "ff225d04-d3ad-4a6c-a86a-a9f60b812a0a"},
+                            {"id", pipe.uuid.ToString()}
+                        }
+                        ).ToList()
+                    }
+                });
+                
+                fileIndex++;
+            }
+            
+            if(result.data.Count > 0)
+                result.customParams.Add(
+                    PIPELINE_OBJECT_NAME, 
+                    pipes[0].properties.Select(x => x.Key).Concat(["clientID", "length", "NameShortRu"]).ToList()
+                    );
+
+            return result;
+        }
+        
         public static List<string> SavePipelines(Graph graph, string outputFileName)
         {
             List<Pipe> pipes = graph.pipes.Values.ToList();

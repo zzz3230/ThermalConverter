@@ -19,14 +19,24 @@
         <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       </None>
       <None Remove="ThermalConverterWebApi\**" />
+      <None Remove="ReportSenderApi\**" />
+      <None Remove="generated-resources-client-develop\**" />
     </ItemGroup>
 
     <ItemGroup>
       <Compile Remove="ThermalConverterWebApi\**" />
+      <Compile Remove="ReportSenderApi\**" />
+      <Compile Remove="generated-resources-client-develop\**" />
     </ItemGroup>
 
     <ItemGroup>
       <EmbeddedResource Remove="ThermalConverterWebApi\**" />
+      <EmbeddedResource Remove="ReportSenderApi\**" />
+      <EmbeddedResource Remove="generated-resources-client-develop\**" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="ReportSenderApi\ReportSenderApi.csproj" />
     </ItemGroup>
 
 </Project>

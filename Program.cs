@@ -1,7 +1,7 @@
-﻿using ThermalConverter;
+﻿using Microsoft.Extensions.Logging;
+using ThermalConverter;
 
-
-string dataFolderPath = "C:\\Users\\zzz32\\Downloads\\Telegram Desktop\\Теплосети Бердск\\geojson\\tests";
+string dataFolderPath = "C:\\Users\\zzz32\\Downloads\\Telegram Desktop\\Теплосети Бердск\\geojson";
 
 ThermalConvert.Args thArgs = new(
     new(){
@@ -33,6 +33,25 @@ else
 }
 
 
+// var res = ReportGenerator.MakeGraphEdges(thGraph);
+//
+// ILoggerFactory loggerFactory = LoggerFactory.Create(x => x.AddConsole());
+//
+// var sender = new ReportSender(loggerFactory, "localhost:29092");
+//
+// foreach (var type in new string[] { "Node", "GraphNode", "Pipeline", "GraphEdge"})
+// {
+//     if(res.customParams.TryGetValue(type, out var param))
+//         sender.AddType(type, param);
+// }
+//
+// sender.SetupUploader(loggerFactory, "testing");
+// for (int i = 0; i < res.data.Count; i++)
+// {
+//     sender.Upload(res.data[i]);
+// }
+
+return;
 
 // Save kafka
 var outDir = "out";

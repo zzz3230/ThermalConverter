@@ -1,0 +1,32 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>12</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CSEx.Flow" Version="0.0.9.8" />
+    <PackageReference Include="CSharpCustomExtensions" Version="0.1.1" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.1" />
+    <PackageReference Include="NetTopologySuite.IO.GeoJSON" Version="4.0.0" />
+    <PackageReference Include="Nntc.Authentication.JwtForwarding.Kafka" Version="1.*" />
+    <PackageReference Include="Nntc.CSEx.Json" Version="0.1.91" />
+    <PackageReference Include="Nntc.CSEx.Types" Version="0.1.6" />
+    <PackageReference Include="Nntc.Messaging.Kafka.Headers" Version="1.*" />
+    <PackageReference Include="Nntc.ObjectModel" Version="0.8.3" />
+    <PackageReference Include="Nntc.ObjectModel.Dto" Version="0.8.3" />
+    <PackageReference Include="Polly.Extensions.Http" Version="3.0.0" />
+    <PackageReference Include="QuikGraph" Version="2.5.0" />
+    <PackageReference Include="Validation" Version="2.6.13-beta" />
+	<PackageReference Include="LanguageExt.Core" Version="4.4.8" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="GraphMaster\Validation\" />
+    <Folder Include="Graph\" />
+  </ItemGroup>
+
+</Project>
